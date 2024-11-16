@@ -1,0 +1,152 @@
+<!-- public/checkout.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Checkout - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links injected by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Checkout</h2>
+        <div id="message"></div>
+        <div id="order-summary">
+            <h3>Order Summary</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>Product Name</th>
+                        <th>Option</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Cart items loaded via JavaScript -->
+                </tbody>
+            </table>
+            <div id="total-price">
+                Total: $0.00
+            </div>
+        </div>
+        <form id="checkout-form">
+            <h3>Shipping Information</h3>
+            <label for="address">Address:</label>
+            <input type="text" id="address" name="shippingInfo[address]" required>
+            
+            <label for="city">City:</label>
+            <input type="text" id="city" name="shippingInfo[city]" required>
+            
+            <label for="state">State:</label>
+            <input type="text" id="state" name="shippingInfo[state]" required>
+            
+            <label for="zip">ZIP Code:</label>
+            <input type="text" id="zip" name="shippingInfo[zip]" required>
+            
+            <label for="country">Country:</label>
+            <input type="text" id="country" name="shippingInfo[country]" required>
+            
+            <h3>Please Enter Your Name Followed by any Additional Notes</h3>
+            <textarea id="userNotes" name="userNotes" rows="4" placeholder="Enter Name and Additional notes here..."></textarea>
+            
+            <h3>Payment Information</h3>
+            <label for="cashappUsername">CashApp Username:</label>
+            <input type="text" id="cashappUsername" name="cashappUsername" required>
+            
+            <button type="submit">Confirm Checkout</button>
+        </form>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/cart');
+                const cart = await response.json();
+                const tbody = document.querySelector('#order-summary tbody');
+                let total = 0;
+
+                if (cart.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">Your cart is empty.</td></tr>';
+                    document.getElementById('checkout-form').style.display = 'none';
+                } else {
+                    cart.forEach(item => {
+                        total += item.price;
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><img src="${item.image}" alt="Product Image" class="thumbnail"></td>
+                            <td>${item.name}</td>
+                            <td>${item.option}</td>
+                            <td>$${item.price.toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+
+                document.getElementById('total-price').innerText = `Total: $${total.toFixed(2)}`;
+            } catch (err) {
+                console.error('Error fetching cart:', err);
+                const tbody = document.querySelector('#order-summary tbody');
+                tbody.innerHTML = '<tr><td colspan="4">Error loading cart.</td></tr>';
+            }
+        });
+
+        document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cashappUsername = document.getElementById('cashappUsername').value.trim();
+            const address = document.getElementById('address').value.trim();
+            const city = document.getElementById('city').value.trim();
+            const state = document.getElementById('state').value.trim();
+            const zip = document.getElementById('zip').value.trim();
+            const country = document.getElementById('country').value.trim();
+            const userNotes = document.getElementById('userNotes').value.trim();
+
+            if (!cashappUsername || !address || !city || !state || !zip || !country) {
+                displayMessage('Please fill in all required fields.', 'danger');
+                return;
+            }
+
+            const shippingInfo = {
+                address,
+                city,
+                state,
+                zip,
+                country
+            };
+
+            try {
+                const response = await fetch('/checkout', { // POST /checkout
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cashappUsername, shippingInfo, userNotes })
+                });
+
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.status === 201) {
+                    messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                    setTimeout(() => {
+                        window.location.href = `/order/${result.orderId}`;
+                    }, 2000);
+                } else {
+                    const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.message;
+                    messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+                }
+            } catch (err) {
+                console.error('Error during checkout:', err);
+                displayMessage('An error occurred during checkout. Please try again.', 'danger');
+            }
+        });
+
+        function displayMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

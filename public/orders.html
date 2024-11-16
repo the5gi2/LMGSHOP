@@ -1,0 +1,70 @@
+<!-- public/orders.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your Orders - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links injected by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Your Orders</h2>
+        <div id="message"></div>
+        <table id="orders-table">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Orders loaded via JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/orders');
+                const orders = await response.json();
+                const tbody = document.querySelector('#orders-table tbody');
+
+                if (orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">You have no orders.</td></tr>';
+                } else {
+                    orders.forEach(order => {
+                        // Calculate total
+                        let total = 0;
+                        order.items.forEach(item => {
+                            total += item.price;
+                        });
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${order.id}</td>
+                            <td>${new Date(order.createdAt).toLocaleString()}</td>
+                            <td>${order.status}</td>
+                            <td>$${total.toFixed(2)}</td>
+                            <td><a href="/order/${order.id}" class="view-btn">View</a></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching orders:', err);
+                const tbody = document.querySelector('#orders-table tbody');
+                tbody.innerHTML = '<tr><td colspan="5">Error loading orders.</td></tr>';
+            }
+        });
+    </script>
+</body>
+</html>

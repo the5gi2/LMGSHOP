@@ -1,0 +1,55 @@
+<!-- public/home.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Home - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h1>Welcome to The Store</h1>
+        <div id="products-container">
+            <!-- Products will be loaded here via JavaScript -->
+        </div>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for loading products
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                const container = document.getElementById('products-container');
+                if (products.length === 0) {
+                    container.innerHTML = '<p>No products available.</p>';
+                } else {
+                    container.innerHTML = '<div id="products-grid" style="display: flex; flex-wrap: wrap; gap: 30px; justify-content: center;"></div>';
+                    const grid = document.getElementById('products-grid');
+                    products.forEach(product => {
+                        const productDiv = document.createElement('div');
+                        productDiv.classList.add('product');
+                        productDiv.innerHTML = `
+                            <a href="/product/${product.id}">
+                                <img src="${product.images[0]}" alt="${product.name}">
+                                <div class="product-content">
+                                    <h3>${product.name}</h3>
+                                    <p class="price">$${product.options && product.options.length > 0 ? product.options[0].price.toFixed(2) : 'N/A'}</p>
+                                </div>
+                            </a>
+                        `;
+                        grid.appendChild(productDiv);
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching products:', err);
+            }
+        });
+    </script>
+</body>
+</html>

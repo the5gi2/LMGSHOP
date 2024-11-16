@@ -1,0 +1,174 @@
+<!-- public/productDetail.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Product Detail - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container" id="product-detail">
+        <div id="product-info">
+            <h2>Product Detail</h2>
+            <div id="product-content">
+                <!-- Product details will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for loading product details
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pathParts = window.location.pathname.split('/');
+            const productId = parseInt(pathParts[pathParts.length - 1]);
+
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                const product = products.find(p => p.id === productId);
+                const container = document.getElementById('product-content');
+
+                if (product) {
+                    // Create image slideshow
+                    let slideshowHTML = '';
+                    if (product.images && product.images.length > 0) {
+                        slideshowHTML += `
+                            <div class="slideshow-container">
+                                ${product.images.map((img, index) => `
+                                    <div class="mySlides fade">
+                                        <img src="${img}" style="width:100%">
+                                    </div>
+                                `).join('')}
+                                
+                                <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+                                <a class="next" onclick="plusSlides(1)">&#10095;</a>
+                            </div>
+                            <br>
+
+                            <div style="text-align:center">
+                                ${product.images.map((_, index) => `
+                                    <span class="dot" onclick="currentSlide(${index + 1})"></span>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+
+                    // Create options dropdown
+                    let optionsHTML = '';
+                    if (product.options && product.options.length > 0) {
+                        optionsHTML += `
+                            <label for="options">Select an Option:</label>
+                            <select id="options" name="options">
+                                <option value="">--Select Option--</option>
+                                ${product.options.map((opt, index) => `
+                                    <option value="${index}">${opt.name} ($${opt.price.toFixed(2)})</option>
+                                `).join('')}
+                            </select>
+                        `;
+                    }
+
+                    container.innerHTML = `
+                        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                            <div style="flex: 1;">
+                                ${slideshowHTML}
+                            </div>
+                            <div style="flex: 1;">
+                                <h3>${product.name}</h3>
+                                <p>${product.description}</p>
+                                ${optionsHTML}
+                                ${product.options && product.options.length > 0 ? `<p id="total-price" class="price">Total Price: $0.00</p>` : ''}
+                                <button onclick="addToCart()">Add to Cart</button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Initialize slideshow
+                    if (product.images && product.images.length > 0) {
+                        showSlides(slideIndex);
+                    }
+
+                    // Event listener for options
+                    if (product.options && product.options.length > 0) {
+                        document.getElementById('options').addEventListener('change', (e) => {
+                            const selectedIndex = e.target.value;
+                            let total = 0;
+                            if (selectedIndex !== "") {
+                                total = product.options[selectedIndex].price;
+                            }
+                            document.getElementById('total-price').innerText = `Total Price: $${total.toFixed(2)}`;
+                        });
+                    }
+                } else {
+                    container.innerHTML = '<p>Product not found.</p>';
+                }
+            } catch (err) {
+                console.error('Error fetching product details:', err);
+                document.getElementById('product-content').innerHTML = '<p>Error loading product details.</p>';
+            }
+        });
+
+        let slideIndex = 1;
+        function plusSlides(n) {
+            showSlides(slideIndex += n);
+        }
+
+        function currentSlide(n) {
+            showSlides(slideIndex = n);
+        }
+
+        function showSlides(n) {
+            let i;
+            let slides = document.getElementsByClassName("mySlides");
+            let dots = document.getElementsByClassName("dot");
+            if (slides.length === 0) return;
+            if (n > slides.length) {slideIndex = 1}
+            if (n < 1) {slideIndex = slides.length}
+            for (i = 0; i < slides.length; i++) {
+                slides[i].style.display = "none";  
+            }
+            for (i = 0; i < dots.length; i++) {
+                dots[i].className = dots[i].className.replace(" active", "");
+            }
+            slides[slideIndex-1].style.display = "block";  
+            if (dots.length >= slideIndex) {
+                dots[slideIndex-1].className += " active";
+            }
+        }
+
+        async function addToCart() {
+            const pathParts = window.location.pathname.split('/');
+            const productId = parseInt(pathParts[pathParts.length - 1]);
+            const optionSelect = document.getElementById('options');
+            const optionIndex = optionSelect.value;
+
+            if (optionIndex === "") {
+                alert('Please select an option.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/cart/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId, optionIndex })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message);
+                } else {
+                    alert(result.message || 'Error adding to cart.');
+                }
+            } catch (err) {
+                console.error('Error adding to cart:', err);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!-- public/login.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+
+    <div class="container">
+        <h2>Login</h2>
+        <div id="message"></div>
+        <form id="login-form">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            
+            <button type="submit">Login</button>
+        </form>
+        <p>Don't have an account? <a href="/users/register">Register here</a>.</p>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for handling login
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('/users/login', { // Route: POST /login under /users
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+            const messageDiv = document.getElementById('message');
+
+            if (response.ok) {
+                messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                setTimeout(() => {
+                    window.location.href = '/home';
+                }, 2000);
+            } else {
+                const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.errors;
+                messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

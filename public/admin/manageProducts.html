@@ -1,0 +1,243 @@
+<!-- public/admin/manageProducts.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Products - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        /* Additional styles for manageProducts page */
+        .manage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .manage-header h2 {
+            margin: 0;
+        }
+
+        .add-product-btn {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            text-decoration: none;
+        }
+
+        .add-product-btn:hover {
+            background-color: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        table th,
+        table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        table th {
+            background-color: #007BFF;
+            color: #ffffff;
+        }
+
+        table tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        table img.thumbnail {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 5px;
+            margin-right: 5px;
+        }
+
+        button.view-btn,
+        a.edit-btn,
+        button.delete-btn {
+            padding: 6px 12px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+            color: #ffffff;
+            text-decoration: none;
+        }
+
+        button.view-btn {
+            background-color: #17a2b8;
+        }
+
+        button.view-btn:hover {
+            background-color: #138496;
+        }
+
+        a.edit-btn {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        a.edit-btn:hover {
+            background-color: #e0a800;
+        }
+
+        button.delete-btn {
+            background-color: #dc3545;
+        }
+
+        button.delete-btn:hover {
+            background-color: #c82333;
+        }
+
+        .alert {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links injected by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <div class="manage-header">
+            <h2>Manage Products</h2>
+            <a href="/admin/addProduct" class="add-product-btn">Add New Product</a>
+        </div>
+        <div id="message"></div>
+        <table id="products-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Options</th>
+                    <th>Images</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Products loaded via JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Function to load all products and display them in the table
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadProducts();
+        });
+
+        async function loadProducts() {
+            try {
+                const response = await fetch('/admin/api/products');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const products = await response.json();
+                const tbody = document.querySelector('#products-table tbody');
+                tbody.innerHTML = ''; // Clear existing rows
+
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6">No products available.</td></tr>';
+                    return;
+                }
+
+                products.forEach(product => {
+                    // Safeguard against missing fields
+                    const productName = product.name || 'N/A';
+                    const productDescription = product.description || 'N/A';
+                    const productOptions = Array.isArray(product.options) ? product.options.map(opt => `${opt.name} ($${opt.price.toFixed(2)})`).join(', ') : 'N/A';
+                    const productImages = Array.isArray(product.images) ? product.images.map(img => `<img src="${img}" alt="Image" class="thumbnail">`).join(' ') : 'No images';
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${product.id || 'N/A'}</td>
+                        <td>${productName}</td>
+                        <td>${productDescription}</td>
+                        <td>${productOptions}</td>
+                        <td>${productImages}</td>
+                        <td>
+                            <button onclick="viewProduct(${product.id})" class="view-btn">View</button>
+                            <a href="/admin/editProduct?id=${product.id}" class="edit-btn">Edit</a>
+                            <button onclick="deleteProduct(${product.id})" class="delete-btn">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('Error loading products:', err);
+                const tbody = document.querySelector('#products-table tbody');
+                tbody.innerHTML = '<tr><td colspan="6">Error loading products.</td></tr>';
+            }
+        }
+
+        // Function to view a product (could link to a detailed view or stay as is)
+        function viewProduct(id) {
+            window.location.href = `/product/${id}`; // Assuming you have a product detail page
+        }
+
+        // Function to delete a product
+        async function deleteProduct(id) {
+            if (!confirm('Are you sure you want to delete this product?')) return;
+
+            try {
+                const response = await fetch(`/admin/api/products/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayMessage(result.message, 'success');
+                    await loadProducts();
+                } else {
+                    displayMessage(result.message || 'Error deleting product.', 'danger');
+                }
+            } catch (err) {
+                console.error('Error deleting product:', err);
+                displayMessage('An error occurred while deleting the product.', 'danger');
+            }
+        }
+
+        // Function to display messages
+        function displayMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

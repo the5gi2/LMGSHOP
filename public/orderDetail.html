@@ -1,0 +1,225 @@
+<!-- public/orderDetail.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Detail - Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        /* Additional styles for better presentation */
+        .order-section {
+            margin-bottom: 30px;
+        }
+
+        .order-section h3 {
+            margin-bottom: 10px;
+            color: #007BFF;
+        }
+
+        .order-section p {
+            margin: 5px 0;
+        }
+
+        .order-section table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .order-section table, .order-section th, .order-section td {
+            border: 1px solid #ddd;
+        }
+
+        .order-section th, .order-section td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        .thumbnail {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+
+        #total-price {
+            text-align: right;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+
+        .admin-notes {
+            padding: 15px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+        }
+
+        .alert {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links injected by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Order Detail</h2>
+        <div id="message"></div>
+        <div id="order-info">
+            <!-- Order details loaded via JavaScript -->
+        </div>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Correctly extract order ID from URL
+            const urlParts = window.location.href.split('order/');
+            const orderIdPart = urlParts[1];
+            const orderId = parseInt(orderIdPart);
+
+            if (isNaN(orderId)) {
+                displayMessage('Invalid order ID.', 'danger');
+                return;
+            }
+
+            try {
+                // Fetch order details from the server
+                const response = await fetch(`/api/orders/${orderId}`); // Adjust the endpoint if necessary
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Order not found.');
+                    } else {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                }
+
+                const order = await response.json();
+                const container = document.getElementById('order-info');
+
+                if (order) {
+                    let itemsHTML = '';
+                    let total = 0;
+
+                    order.items.forEach(item => {
+                        total += item.price; // No quantity, so just add price
+                        itemsHTML += `
+                            <tr>
+                                <td><img src="${item.image}" alt="Product Image" class="thumbnail"></td>
+                                <td>${item.name}</td>
+                                <td>${item.option}</td>
+                                <td>$${item.price.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // Admin Notes Section
+                    let adminNotesHTML = '';
+                    if (order.adminNotes && order.adminNotes.trim() !== '') {
+                        adminNotesHTML = `
+                            <div class="order-section admin-notes">
+                                <h3>Admin Notes</h3>
+                                <p>${order.adminNotes}</p>
+                            </div>
+                        `;
+                    }
+
+                    // Tracking Number Section
+                    let trackingNumberHTML = '';
+                    if (order.trackingNumber && order.trackingNumber.trim() !== '') {
+                        trackingNumberHTML = `
+                            <div class="order-section">
+                                <h3>Tracking Number</h3>
+                                <p>${order.trackingNumber}</p>
+                            </div>
+                        `;
+                    }
+
+                    container.innerHTML = `
+                        <div class="order-section">
+                            <h3>Order Information</h3>
+                            <p><strong>Order ID:</strong> ${order.id}</p>
+                            <p><strong>Order Date:</strong> ${new Date(order.createdAt).toLocaleString()}</p>
+                            <p><strong>Status:</strong> ${order.status}</p>
+                        </div>
+                        
+                        <div class="order-section">
+                            <h3>Shipping Information</h3>
+                            <p><strong>Address:</strong> ${order.shippingInfo.address}</p>
+                            <p><strong>City:</strong> ${order.shippingInfo.city}</p>
+                            <p><strong>State:</strong> ${order.shippingInfo.state}</p>
+                            <p><strong>ZIP Code:</strong> ${order.shippingInfo.zip}</p>
+                            <p><strong>Country:</strong> ${order.shippingInfo.country}</p>
+                        </div>
+                        
+                        <div class="order-section">
+                            <h3>Additional Notes</h3>
+                            <p>${order.userNotes || 'N/A'}</p>
+                        </div>
+                        
+                        ${adminNotesHTML}
+                        
+                        ${trackingNumberHTML}
+                        
+                        <div class="order-section">
+                            <h3>Items</h3>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Image</th>
+                                        <th>Product Name</th>
+                                        <th>Option</th>
+                                        <th>Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHTML}
+                                </tbody>
+                            </table>
+                            <div id="total-price">
+                                <strong>Total: $${total.toFixed(2)}</strong>
+                            </div>
+                        </div>
+                        
+                        <div class="order-section">
+                            <h3>Payment Information</h3>
+                            <p><strong>CashApp Username:</strong> ${order.cashappUsername}</p>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p>Order not found.</p>';
+                }
+            } catch (err) {
+                console.error('Error fetching order details:', err);
+                document.getElementById('order-info').innerHTML = `<p>${err.message}</p>`;
+            }
+        });
+
+        // Function to display messages
+        function displayMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
