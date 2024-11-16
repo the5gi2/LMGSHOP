@@ -1,0 +1,273 @@
+<!-- public/admin/addProduct.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Product - Simple Node Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Include SortableJS for drag-and-drop functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Add New Product</h2>
+        <div id="message"></div>
+        <form id="add-product-form" enctype="multipart/form-data">
+            <label for="name">Product Name:</label>
+            <input type="text" id="name" name="name" required>
+            
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" required></textarea>
+            
+            <label>Options:</label>
+            <div id="options-container">
+                <!-- Dynamic options will be added here -->
+            </div>
+            <button type="button" onclick="addOption()">Add Option</button>
+            
+            <label for="images">Product Images:</label>
+            <input type="file" id="images" name="images" accept="image/*" multiple>
+            
+            <table id="image-order-table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Image Preview</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Uploaded images will appear here for ordering and deletion -->
+                </tbody>
+            </table>
+            
+            <input type="hidden" id="imageOrder" name="imageOrder" value="[]">
+            
+            <button type="submit">Add Product</button>
+        </form>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Array to store uploaded File objects
+        let uploadedFiles = [];
+
+        // Function to add a new option
+        function addOption(name = '', price = '') {
+            const container = document.getElementById('options-container');
+            const optionDiv = document.createElement('div');
+            optionDiv.classList.add('option-item');
+            optionDiv.innerHTML = `
+                <input type="text" name="optionName" placeholder="Option Name" value="${name}" required>
+                <input type="number" step="0.01" name="optionPrice" placeholder="Option Price ($)" value="${price}" required>
+                <button type="button" onclick="removeOption(this)">Remove</button>
+            `;
+            container.appendChild(optionDiv);
+        }
+
+        // Function to remove an option
+        function removeOption(button) {
+            const optionDiv = button.parentElement;
+            optionDiv.remove();
+        }
+
+        // Handle image uploads and display in image order table
+        document.getElementById('images').addEventListener('change', function(event) {
+            const files = event.target.files;
+            const tableBody = document.querySelector('#image-order-table tbody');
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-id', uploadedFiles.length); // Assign current index
+
+                    row.innerHTML = `
+                        <td class="handle" style="cursor: move;">☰</td>
+                        <td><img src="${e.target.result}" alt="Image Preview" class="thumbnail"></td>
+                        <td><button type="button" onclick="deleteImage(this)">Delete</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                    addEventListenersToImageRow(row);
+                    uploadedFiles.push(file); // Store the actual File object
+                    updateImageOrder(); // Update imageOrder after adding
+                }
+
+                reader.readAsDataURL(file);
+            }
+
+            // Clear the file input to allow re-uploading the same file if needed
+            event.target.value = '';
+        });
+
+        // Function to delete an image from the table
+        function deleteImage(button) {
+            const row = button.parentElement.parentElement;
+            const index = parseInt(row.getAttribute('data-id'));
+
+            if (!isNaN(index) && uploadedFiles[index]) {
+                // Remove the file from the array
+                uploadedFiles.splice(index, 1);
+                // Remove the row from the table
+                row.remove();
+                // Reassign data-id attributes for remaining rows
+                const rows = document.querySelectorAll('#image-order-table tbody tr');
+                rows.forEach((r, idx) => {
+                    r.setAttribute('data-id', idx);
+                });
+                // Update imageOrder after deletion
+                updateImageOrder();
+            }
+        }
+
+        // Initialize SortableJS on the image order table
+        document.addEventListener('DOMContentLoaded', () => {
+            const tbody = document.querySelector('#image-order-table tbody');
+            Sortable.create(tbody, {
+                handle: '.handle',
+                animation: 150,
+                onEnd: updateImageOrder // Update imageOrder after drag-and-drop
+            });
+        });
+
+        // Update the imageOrder hidden field based on current table order
+        function updateImageOrder() {
+            const tableBody = document.querySelector('#image-order-table tbody');
+            const rows = tableBody.querySelectorAll('tr');
+            const order = [];
+
+            rows.forEach(row => {
+                const index = parseInt(row.getAttribute('data-id'));
+                if (!isNaN(index)) {
+                    order.push(index);
+                }
+            });
+
+            // The server expects imageOrder as an array of indices indicating the uploadFiles sequence
+            // Therefore, imageOrder should map to the current order of images
+            document.getElementById('imageOrder').value = JSON.stringify(order);
+        }
+
+        // Handle form submission
+        document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData();
+
+            // Append product name and description
+            formData.append('name', form.name.value);
+            formData.append('description', form.description.value);
+
+            // Gather all options
+            const optionNames = form.querySelectorAll('input[name="optionName"]');
+            const optionPrices = form.querySelectorAll('input[name="optionPrice"]');
+            let options = [];
+
+            optionNames.forEach((input, index) => {
+                const name = input.value.trim();
+                const price = parseFloat(optionPrices[index].value);
+                if (name && !isNaN(price)) {
+                    options.push({ name, price });
+                }
+            });
+
+            // Append options as JSON string
+            formData.append('options', JSON.stringify(options));
+
+            // Append imageOrder as the current order of uploadedFiles
+            const imageOrder = form.imageOrder.value;
+            formData.append('imageOrder', imageOrder);
+
+            // Append images in the desired order based on imageOrder
+            const orderArray = JSON.parse(imageOrder);
+            orderArray.forEach(idx => {
+                const file = uploadedFiles[idx];
+                if (file) {
+                    formData.append('images', file);
+                }
+            });
+
+            try {
+                const response = await fetch('/admin/add', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.status === 201) {
+                    messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                    form.reset();
+                    document.querySelector('#image-order-table tbody').innerHTML = '';
+                    uploadedFiles = [];
+                    document.getElementById('imageOrder').value = '[]';
+                } else {
+                    const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.errors;
+                    messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+                }
+            } catch (err) {
+                console.error('Error adding product:', err);
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="alert alert-danger">An error occurred while adding the product.</div>`;
+            }
+        });
+
+        // Function to add event listeners to image rows
+        function addEventListenersToImageRow(row) {
+            const deleteBtn = row.querySelector('button');
+            const dragHandle = row.querySelector('.handle');
+            if (deleteBtn) {
+                deleteBtn.onclick = () => deleteImage(deleteBtn);
+            }
+            if (dragHandle) {
+                dragHandle.ondragstart = dragStart;
+            }
+
+            row.addEventListener('dragover', dragOver, false);
+            row.addEventListener('drop', drop, false);
+            row.addEventListener('dragend', dragEnd, false);
+        }
+
+        let dragSrcEl = null;
+
+        function dragStart(e) {
+            dragSrcEl = e.target.parentElement;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', dragSrcEl.innerHTML);
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function drop(e) {
+            e.stopPropagation();
+            if (dragSrcEl !== this.parentElement) {
+                dragSrcEl.innerHTML = this.parentElement.innerHTML;
+                this.parentElement.innerHTML = e.dataTransfer.getData('text/html');
+
+                // Re-attach event listeners after swapping
+                addEventListenersToImageRow(dragSrcEl);
+                addEventListenersToImageRow(this.parentElement);
+
+                // Update imageOrder after dropping
+                updateImageOrder();
+            }
+            return false;
+        }
+
+        function dragEnd(e) {
+            // Optional: Add any visual feedback after dragging ends
+        }
+    </script>
+</body>
+</html>

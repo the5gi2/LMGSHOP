@@ -1,0 +1,362 @@
+<!-- public/admin/editProduct.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Product - Simple Node Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Include SortableJS for drag-and-drop functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Edit Product</h2>
+        <div id="message"></div>
+        <form id="edit-product-form" enctype="multipart/form-data">
+            <input type="hidden" id="product-id" name="id">
+            
+            <label for="name">Product Name:</label>
+            <input type="text" id="name" name="name" required>
+            
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" required></textarea>
+            
+            <label>Options:</label>
+            <div id="options-container">
+                <!-- Existing options will be populated here -->
+            </div>
+            <button type="button" onclick="addOption()">Add Option</button>
+            
+            <label for="images">Add More Images (optional):</label>
+            <input type="file" id="images" name="images" accept="image/*" multiple>
+            
+            <label>Existing Images:</label>
+            <table id="existing-image-order-table">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Image Preview</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Existing images will appear here for ordering and deletion -->
+                </tbody>
+            </table>
+            
+            <input type="hidden" id="imageOrder" name="imageOrder" value="[]">
+            <input type="hidden" id="deleteImages" name="deleteImages" value="[]">
+            
+            <button type="submit">Update Product</button>
+        </form>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        let uploadedFiles = []; // Store new File objects
+        let existingImages = []; // Store existing image paths and deletion status
+
+        // Function to add a new option
+        function addOption(name = '', price = '') {
+            const container = document.getElementById('options-container');
+            const optionDiv = document.createElement('div');
+            optionDiv.classList.add('option-item');
+            optionDiv.innerHTML = `
+                <input type="text" name="optionName" placeholder="Option Name" value="${name}" required>
+                <input type="number" step="0.01" name="optionPrice" placeholder="Option Price ($)" value="${price}" required>
+                <button type="button" onclick="removeOption(this)">Remove</button>
+            `;
+            container.appendChild(optionDiv);
+        }
+
+        // Function to remove an option
+        function removeOption(button) {
+            const optionDiv = button.parentElement;
+            optionDiv.remove();
+        }
+
+        // Handle image uploads and display in existing image order table
+        document.getElementById('images').addEventListener('change', function(event) {
+            const files = event.target.files;
+            const tableBody = document.querySelector('#existing-image-order-table tbody');
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-id', existingImages.length + uploadedFiles.length); // Assign current index
+
+                    row.innerHTML = `
+                        <td class="handle" style="cursor: move;">☰</td>
+                        <td><img src="${e.target.result}" alt="Image Preview" class="thumbnail"></td>
+                        <td><button type="button" onclick="deleteImage(this)">Delete</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                    addEventListenersToImageRow(row);
+                    uploadedFiles.push(file); // Store the actual File object
+                    updateImageOrder(); // Update imageOrder after adding
+                }
+
+                reader.readAsDataURL(file);
+            }
+
+            // Clear the file input to allow re-uploading the same file if needed
+            event.target.value = '';
+        });
+
+        // Function to delete an image from the table
+        function deleteImage(button) {
+            const row = button.parentElement.parentElement;
+            const index = parseInt(row.getAttribute('data-id'));
+
+            if (!isNaN(index)) {
+                if (index < existingImages.length) {
+                    // Existing image - mark for deletion
+                    existingImages[index].toDelete = true;
+                } else {
+                    // New uploaded image - remove from uploadedFiles
+                    const fileIndex = index - existingImages.length;
+                    if (!isNaN(fileIndex) && uploadedFiles[fileIndex]) {
+                        uploadedFiles.splice(fileIndex, 1);
+                        // Update data-id for remaining uploaded images
+                        const uploadedRows = document.querySelectorAll('#existing-image-order-table tbody tr');
+                        uploadedRows.forEach((r, idx) => {
+                            const currentId = parseInt(r.getAttribute('data-id'));
+                            if (currentId >= existingImages.length) {
+                                r.setAttribute('data-id', idx + existingImages.length);
+                            }
+                        });
+                    }
+                }
+
+                // Remove the row from the table
+                row.remove();
+                // Update imageOrder after deletion
+                updateImageOrder();
+            }
+        }
+
+        // Initialize SortableJS on the existing image order table
+        document.addEventListener('DOMContentLoaded', () => {
+            const tbody = document.querySelector('#existing-image-order-table tbody');
+            Sortable.create(tbody, {
+                handle: '.handle',
+                animation: 150,
+                onEnd: updateImageOrder // Update imageOrder after drag-and-drop
+            });
+        });
+
+        // Update the imageOrder hidden field based on current table order
+        function updateImageOrder() {
+            const tableBody = document.querySelector('#existing-image-order-table tbody');
+            const rows = tableBody.querySelectorAll('tr');
+            const order = [];
+
+            rows.forEach(row => {
+                const index = parseInt(row.getAttribute('data-id'));
+                if (!isNaN(index)) {
+                    order.push(index);
+                }
+            });
+
+            // The server expects imageOrder as an array of indices indicating the uploadedFiles sequence
+            document.getElementById('imageOrder').value = JSON.stringify(order);
+        }
+
+        // Handle form submission
+        document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const productId = document.getElementById('product-id').value;
+            const formData = new FormData();
+
+            // Append product name and description
+            formData.append('name', form.name.value);
+            formData.append('description', form.description.value);
+
+            // Gather all options
+            const optionNames = form.querySelectorAll('input[name="optionName"]');
+            const optionPrices = form.querySelectorAll('input[name="optionPrice"]');
+            let options = [];
+
+            optionNames.forEach((input, index) => {
+                const name = input.value.trim();
+                const price = parseFloat(optionPrices[index].value);
+                if (name && !isNaN(price)) {
+                    options.push({ name, price });
+                }
+            });
+
+            // Append options as JSON string
+            formData.append('options', JSON.stringify(options));
+
+            // Append imageOrder as the current order of all images (existing and new)
+            const imageOrder = form.imageOrder.value;
+            formData.append('imageOrder', imageOrder);
+
+            // Append images in the desired order based on imageOrder
+            const orderArray = JSON.parse(imageOrder);
+            orderArray.forEach(idx => {
+                if (idx < existingImages.length) {
+                    // Existing image - do not append
+                } else {
+                    const fileIndex = idx - existingImages.length;
+                    const file = uploadedFiles[fileIndex];
+                    if (file) {
+                        formData.append('images', file);
+                    }
+                }
+            });
+
+            // Append deleteImages as an array of image paths to delete
+            const imagesToDelete = existingImages
+                .map((img, idx) => img.toDelete ? img.path : null)
+                .filter(img => img !== null);
+            formData.append('deleteImages', JSON.stringify(imagesToDelete));
+
+            try {
+                const response = await fetch(`/admin/edit/${productId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                    setTimeout(() => {
+                        window.location.href = '/admin/manageProducts';
+                    }, 2000);
+                } else {
+                    const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.errors;
+                    messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+                }
+            } catch (err) {
+                console.error('Error updating product:', err);
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="alert alert-danger">An error occurred while updating the product.</div>`;
+            }
+        });
+
+        // Function to add event listeners to image rows
+        function addEventListenersToImageRow(row) {
+            const deleteBtn = row.querySelector('button');
+            const dragHandle = row.querySelector('.handle');
+            if (deleteBtn) {
+                deleteBtn.onclick = () => deleteImage(deleteBtn);
+            }
+            if (dragHandle) {
+                dragHandle.ondragstart = dragStart;
+            }
+
+            row.addEventListener('dragover', dragOver, false);
+            row.addEventListener('drop', drop, false);
+            row.addEventListener('dragend', dragEnd, false);
+        }
+
+        let dragSrcEl = null;
+
+        function dragStart(e) {
+            dragSrcEl = e.target.parentElement;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', dragSrcEl.innerHTML);
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function drop(e) {
+            e.stopPropagation();
+            if (dragSrcEl !== this.parentElement) {
+                dragSrcEl.innerHTML = this.parentElement.innerHTML;
+                this.parentElement.innerHTML = e.dataTransfer.getData('text/html');
+
+                // Re-attach event listeners after swapping
+                addEventListenersToImageRow(dragSrcEl);
+                addEventListenersToImageRow(this.parentElement);
+
+                // Update imageOrder after dropping
+                updateImageOrder();
+            }
+            return false;
+        }
+
+        function dragEnd(e) {
+            // Optional: Add any visual feedback after dragging ends
+        }
+
+        // Fetch product details and populate the form
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const productId = urlParams.get('id');
+            if (!productId) {
+                alert('No product ID provided.');
+                window.location.href = '/admin/manageProducts';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                const product = products.find(p => p.id === parseInt(productId));
+                if (!product) {
+                    alert('Product not found.');
+                    window.location.href = '/admin/manageProducts';
+                    return;
+                }
+
+                // Populate form fields
+                document.getElementById('product-id').value = product.id;
+                document.getElementById('name').value = product.name;
+                document.getElementById('description').value = product.description;
+
+                // Populate options
+                const optionsContainer = document.getElementById('options-container');
+                optionsContainer.innerHTML = ''; // Clear existing options
+                if (product.options && product.options.length > 0) {
+                    product.options.forEach(opt => {
+                        addOption(opt.name, opt.price);
+                    });
+                }
+
+                // Populate existing images
+                const imageManager = document.querySelector('#existing-image-order-table tbody');
+                imageManager.innerHTML = ''; // Clear existing images
+                existingImages = product.images.map(imgPath => {
+                    return { path: imgPath, toDelete: false };
+                });
+
+                product.images.forEach((img, index) => {
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-id', index); // Assign index as data-id
+
+                    row.innerHTML = `
+                        <td class="handle" style="cursor: move;">☰</td>
+                        <td><img src="${img}" alt="Product Image" class="thumbnail"></td>
+                        <td><button type="button" onclick="deleteImage(this)">Delete</button></td>
+                    `;
+                    imageManager.appendChild(row);
+                    addEventListenersToImageRow(row);
+                });
+
+                // Set initial imageOrder based on existing images
+                updateImageOrder();
+            } catch (err) {
+                console.error('Error fetching product:', err);
+                alert('An error occurred while fetching product details.');
+                window.location.href = '/admin/manageProducts';
+            }
+        });
+    </script>
+</body>
+</html>

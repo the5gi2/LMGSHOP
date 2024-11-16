@@ -1,0 +1,62 @@
+<!-- public/register.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register - Simple Node Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+
+    <div class="container">
+        <h2>Register</h2>
+        <div id="message"></div>
+        <form id="register-form">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            
+            <label for="password2">Confirm Password:</label>
+            <input type="password" id="password2" name="password2" required>
+            
+            <button type="submit">Register</button>
+        </form>
+        <p>Already have an account? <a href="/users/login">Login here</a>.</p>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for handling registration
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const password2 = document.getElementById('password2').value;
+
+            const response = await fetch('/users/register', { // Route: POST /users/register
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, password2 })
+            });
+
+            const result = await response.json();
+            const messageDiv = document.getElementById('message');
+
+            if (response.status === 201) {
+                messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                setTimeout(() => {
+                    window.location.href = '/users/login';
+                }, 2000);
+            } else {
+                const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.errors;
+                messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

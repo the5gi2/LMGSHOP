@@ -1,0 +1,107 @@
+<!-- public/admin/manageProducts.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Products - Simple Node Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Manage Products</h2>
+        <div class="manage-header">
+            <a href="/admin/addProduct" class="add-product-btn">Add New Product</a>
+        </div>
+        <div id="message"></div>
+        <table id="products-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Options</th>
+                    <th>Images</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Products will be loaded here via JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for loading and managing products
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                const tableBody = document.querySelector('#products-table tbody');
+
+                if (products.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="6">No products available.</td></tr>';
+                } else {
+                    products.forEach(product => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${product.id}</td>
+                            <td>${product.name}</td>
+                            <td>${product.description}</td>
+                            <td>
+                                ${product.options.map(opt => `${opt.name} ($${opt.price.toFixed(2)})`).join('<br>')}
+                            </td>
+                            <td>
+                                ${product.images.map(img => `<img src="${img}" alt="Product Image" class="thumbnail">`).join(' ')}
+                            </td>
+                            <td>
+                                <a href="/admin/editProduct?id=${product.id}" class="edit-btn">Edit</a>
+                                <button onclick="deleteProduct(${product.id})">Delete</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching products:', err);
+                const tableBody = document.querySelector('#products-table tbody');
+                tableBody.innerHTML = '<tr><td colspan="6">Error loading products.</td></tr>';
+            }
+        });
+
+        // Function to delete a product
+        async function deleteProduct(productId) {
+            if (!confirm('Are you sure you want to delete this product?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/delete/${productId}`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                    // Remove the product row from the table
+                    const row = document.querySelector(`button[onclick="deleteProduct(${productId})"]`).parentElement.parentElement;
+                    row.remove();
+                } else {
+                    const errors = Array.isArray(result.errors) ? result.errors.join('<br>') : result.errors;
+                    messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+                }
+            } catch (err) {
+                console.error('Error deleting product:', err);
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="alert alert-danger">An error occurred while deleting the product.</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

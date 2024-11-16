@@ -1,0 +1,107 @@
+<!-- public/cart.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cart - Simple Node Store</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav id="navbar">
+        <!-- Navigation links will be injected here by navbar.js -->
+    </nav>
+    
+    <div class="container">
+        <h2>Your Cart</h2>
+        <div id="message"></div>
+        <table id="cart-table">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Product Name</th>
+                    <th>Option</th>
+                    <th>Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Cart items will be loaded here via JavaScript -->
+            </tbody>
+        </table>
+        <div id="cart-total">
+            Total: $0.00
+        </div>
+        <div id="cart-actions">
+            <button onclick="checkout()">Checkout</button>
+        </div>
+    </div>
+
+    <script src="/js/navbar.js"></script>
+    <script>
+        // Script for loading and managing cart items
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/cart');
+                const cart = await response.json();
+                const tableBody = document.querySelector('#cart-table tbody');
+                let total = 0;
+
+                if (cart.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5">Your cart is empty.</td></tr>';
+                } else {
+                    cart.forEach((item, index) => {
+                        total += item.price;
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><img src="${item.image}" alt="Product Image" class="thumbnail"></td>
+                            <td>${item.name}</td>
+                            <td>${item.option}</td>
+                            <td>$${item.price.toFixed(2)}</td>
+                            <td><button onclick="removeFromCart(${index})">Remove</button></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+
+                document.getElementById('cart-total').innerText = `Total: $${total.toFixed(2)}`;
+            } catch (err) {
+                console.error('Error fetching cart:', err);
+                const tableBody = document.querySelector('#cart-table tbody');
+                tableBody.innerHTML = '<tr><td colspan="5">Error loading cart.</td></tr>';
+            }
+        });
+
+        // Function to remove item from cart
+        async function removeFromCart(index) {
+            try {
+                const response = await fetch('/api/cart/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index })
+                });
+
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.ok) {
+                    messageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                    // Reload the cart
+                    location.reload();
+                } else {
+                    const errors = result.message || 'Error removing item from cart.';
+                    messageDiv.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
+                }
+            } catch (err) {
+                console.error('Error removing from cart:', err);
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = `<div class="alert alert-danger">An error occurred while removing the item.</div>`;
+            }
+        }
+
+        // Function to handle checkout (placeholder)
+        function checkout() {
+            alert('Checkout functionality is not implemented yet.');
+        }
+    </script>
+</body>
+</html>
